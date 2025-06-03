@@ -1,0 +1,135 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Vercel
+.vercel/
+.vercel
+
+# Next.js build outputs (se mai dovessi usare Next.js)
+.next/
+out/
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+.nyc_output/
+
+# Dependency directories
+jspm_packages/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variables file
+.env.test
+
+# parcel-bundler cache (https://parceljs.org/)
+.cache
+.parcel-cache
+
+# Stores VSCode versions used for testing VSCode extensions
+.vscode-test
+
+# Temporary folders
+tmp/
+temp/
+
+# Database files (se mai dovessi usare DB locali)
+*.db
+*.sqlite
+*.sqlite3
+
+# API keys e file sensibili
+config/keys.js
+secrets.json
+
+# Test coverage
+test-results/
+coverage.lcov
+
+# Backup files
+*.backup
+*.bak
+*.old
+
+# Cache directories
+.cache/
+.temp/
+
+# Lock files (dipende dalla preferenza del team)
+# package-lock.json  # Decommenta se vuoi ignorare npm lock
+# yarn.lock          # Decommenta se vuoi ignorare yarn lock
+
+# Vercel CLI cache
+.vercel
+
+# Local development certificates
+*.pem
+*.key
+*.crt
+
+# Documentation builds
+docs/build/
+documentation/build/
+
+# Storybook build outputs
+storybook-static/
+
+# Misc
+.turbo

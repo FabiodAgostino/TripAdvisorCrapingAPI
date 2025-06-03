@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Salento Scraping API - Documentazione</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f6fa;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #D2691E 0%, #8B4513 100%);
+            color: white;
+            padding: 40px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            margin-bottom: 20px;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            background: rgba(255,255,255,0.2);
+            padding: 8px 16px;
+            border-radius: 25px;
+            font-size: 0.9rem;
+        }
+
+        .endpoint {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin: 25px 0;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            border-left: 5px solid #D2691E;
+        }
+
+        .method {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 6px;
+            color: white;
+            font-weight: bold;
+            font-size: 0.85rem;
+            margin-right: 10px;
+        }
+
+        .post { background: #28a745; }
+        .get { background: #007bff; }
+
+        .endpoint h3 {
+            font-size: 1.4rem;
+            margin-bottom: 15px;
+            color: #2c3e50;
+        }
+
+        .endpoint-description {
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 1.1rem;
+        }
+
+        pre {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 0.9rem;
+            line-height: 1.4;
+            margin: 15px 0;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .operational { background: #28a745; }
+        .warning { background: #ffc107; }
+        .error { background: #dc3545; }
+
+        .test-section {
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+            padding: 30px;
+            border-radius: 10px;
+            margin: 30px 0;
+            border: 1px solid #90caf9;
+        }
+
+        .test-section h3 {
+            color: #1565c0;
+            margin-bottom: 20px;
+        }
+
+        .test-input {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .test-input:focus {
+            outline: none;
+            border-color: #D2691E;
+        }
+
+        .test-button {
+            background: #D2691E;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .test-button:hover {
+            background: #8B4513;
+            transform: translateY(-2px);
+        }
+
+        .test-result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: monospace;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .error-result {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .info-result {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin: 30px 0;
+        }
+
+        .info-card {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+
+        .info-card h3 {
+            color: #D2691E;
+            margin-bottom: 15px;
+        }
+
+        .info-card ul {
+            list-style: none;
+        }
+
+        .info-card li {
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .info-card li:last-child {
+            border-bottom: none;
+        }
+
+        .badge {
+            display: inline-block;
+            background: #D2691E;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .header {
+                padding: 20px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .endpoint {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🍽️ Salento Scraping API</h1>
+            <p>API Serverless per l'estrazione di dati ristoranti da TripAdvisor</p>
+            <div class="status-badge">
+                <strong>Status:</strong> <span id="api-status">Checking...</span>
+            </div>
+        </div>
+
+        <h2>📚 Endpoints Disponibili</h2>
+
+        <div class="endpoint">
+            <h3><span class="method post">POST</span> /api/scrape</h3>
+            <p class="endpoint-description">Estrae dati completi di un ristorante da TripAdvisor</p>
+            
+            <h4>📤 Request Body:</h4>
+            <pre>{
+  "url": "https://www.tripadvisor.it/Restaurant_Review-...",
+  "options": {
+    "timeout": 8000,
+    "retries": 1,
+    "userAgent": "custom-user-agent"
+  }
+}</pre>
+
+            <h4>📥 Response:</h4>
+            <pre>{
+  "success": true,
+  "data": {
+    "name": "Nome Ristorante",
+    "rating": "4.5",
+    "priceRange": "€€",
+    "cuisine": "italiana",
+    "cuisines": ["italiana", "pugliese"],
+    "description": "Descrizione del ristorante...",
+    "address": "Via Roma 123, Lecce",
+    "location": "Lecce",
+    "latitude": "40.3515",
+    "longitude": "18.1750",
+    "phone": "+39 0832 123456",
+    "imageUrl": "https://...",
+    "extractedAt": "2024-01-15T10:30:00Z",
+    "sourceUrl": "https://..."
+  },
+  "timestamp": "2024-01-15T10:30:00Z",
+  "version": "1.0.0"
+}</pre>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method get">GET</span> /api/health</h3>
+            <p class="endpoint-description">Verifica lo stato di salute dell'API e dei servizi</p>
+            
+            <h4>📥 Response:</h4>
+            <pre>{
+  "status": "healthy",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "uptime": 3600,
+  "version": "1.0.0",
+  "services": {
+    "scraping": "operational",
+    "external_apis": "operational"
+  }
+}</pre>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method get">GET</span> /api/test</h3>
+            <p class="endpoint-description">Endpoint di test con informazioni ed esempi di utilizzo</p>
+            
+            <h4>📥 Response:</h4>
+            <pre>{
+  "success": true,
+  "data": {
+    "message": "API Scraping Salento funzionante! 🚀",
+    "endpoints": { ... },
+    "example_request": { ... }
+  }
+}</pre>
+        </div>
+
+        <div class="test-section">
+            <h3>🚀 Test Live dell'API</h3>
+            <p>Testa il scraping in tempo reale inserendo un URL TripAdvisor:</p>
+            
+            <input 
+                type="text" 
+                id="test-url" 
+                class="test-input"
+                placeholder="https://www.tripadvisor.it/Restaurant_Review-..."
+            >
+            
+            <button onclick="testScraping()" class="test-button">
+                🔍 Testa Scraping
+            </button>
+            
+            <div id="test-result"></div>
+        </div>
+
+        <div class="grid">
+            <div class="info-card">
+                <h3>📖 Codici di Stato</h3>
+                <ul>
+                    <li><span class="badge">200</span> Successo</li>
+                    <li><span class="badge">400</span> URL mancante o non valido</li>
+                    <li><span class="badge">403</span> TripAdvisor ha bloccato la richiesta</li>
+                    <li><span class="badge">408</span> Timeout della richiesta</li>
+                    <li><span class="badge">500</span> Errore interno del server</li>
+                </ul>
+            </div>
+
+            <div class="info-card">
+                <h3>⚙️ Limitazioni</h3>
+                <ul>
+                    <li>Timeout massimo: 10 secondi</li>
+                    <li>Retry automatico in caso di errore</li>
+                    <li>Solo URL TripAdvisor supportati</li>
+                    <li>Rate limiting rispettoso</li>
+                    <li>CORS abilitato per uso pubblico</li>
+                </ul>
+            </div>
+
+            <div class="info-card">
+                <h3>🔧 Dati Estratti</h3>
+                <ul>
+                    <li>Nome del ristorante</li>
+                    <li>Rating e recensioni</li>
+                    <li>Fascia di prezzo (€, €€, €€€, €€€€)</li>
+                    <li>Tipologie di cucina</li>
+                    <li>Descrizione e indirizzo</li>
+                    <li>Coordinate GPS</li>
+                    <li>Numero di telefono</li>
+                    <li>Immagine principale</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="info-card">
+            <h3>💻 Esempio di Utilizzo</h3>
+            <pre>// JavaScript/TypeScript
+const response = await fetch('/api/scrape', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    url: 'https://www.tripadvisor.it/Restaurant_Review-...',
+    options: {
+      timeout: 8000,
+      retries: 1
+    }
+  })
+});
+
+const data = await response.json();
+if (data.success) {
+  console.log('Ristorante:', data.data.name);
+  console.log('Rating:', data.data.rating);
+}</pre>
+        </div>
+
+        <footer style="text-align: center; margin-top: 50px; padding: 20px; color: #666;">
+            <p>🍽️ <strong>Salento Scraping API</strong> v1.0.0</p>
+            <p>Creato per il progetto Salento Restaurant Explorer</p>
+        </footer>
+    </div>
+
+    <script>
+        // Check API status on page load
+        checkApiStatus();
+
+        async function checkApiStatus() {
+            try {
+                const response = await fetch('/api/health');
+                const data = await response.json();
+                
+                const statusElement = document.getElementById('api-status');
+                const indicator = `<span class="status-indicator ${data.status === 'healthy' ? 'operational' : 'warning'}"></span>`;
+                statusElement.innerHTML = indicator + (data.status === 'healthy' ? 'Online' : 'Degraded');
+            } catch (error) {
+                const statusElement = document.getElementById('api-status');
+                statusElement.innerHTML = '<span class="status-indicator error"></span>Offline';
+            }
+        }
+
+        // Test scraping function
+        async function testScraping() {
+            const url = document.getElementById('test-url').value.trim();
+            const resultDiv = document.getElementById('test-result');
+            
+            if (!url) {
+                resultDiv.innerHTML = '<div class="test-result error-result">❌ Inserisci un URL TripAdvisor valido</div>';
+                return;
+            }
+
+            if (!url.includes('tripadvisor')) {
+                resultDiv.innerHTML = '<div class="test-result error-result">❌ L\'URL deve essere di TripAdvisor</div>';
+                return;
+            }
+
+            resultDiv.innerHTML = '<div class="test-result info-result">🔄 Estrazione in corso... Attendere...</div>';
+
+            try {
+                const response = await fetch('/api/scrape', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url })
+                });
+
+                const data = await response.json();
+
+                if (data.success && data.data) {
+                    resultDiv.innerHTML = `
+                        <div class="test-result success">
+                            <div style="font-weight: bold; margin-bottom: 10px;">✅ Estrazione completata con successo!</div>
+                            <div><strong>Nome:</strong> ${data.data.name}</div>
+                            <div><strong>Rating:</strong> ${data.data.rating} ⭐</div>
+                            <div><strong>Prezzo:</strong> ${data.data.priceRange}</div>
+                            <div><strong>Cucina:</strong> ${data.data.cuisine}</div>
+                            <div><strong>Località:</strong> ${data.data.location}</div>
+                            ${data.data.phone ? `<div><strong>Telefono:</strong> ${data.data.phone}</div>` : ''}
+                            <div style="margin-top: 10px; font-size: 0.9em; opacity: 0.8;">
+                                Tempo di elaborazione: ${data.data.processingTime || 'N/A'}ms
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="test-result error-result">
+                            ❌ <strong>Errore:</strong> ${data.error || 'Errore sconosciuto'}
+                            ${data.suggestion ? `<br>💡 <strong>Suggerimento:</strong> ${data.suggestion}` : ''}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="test-result error-result">
+                        ❌ <strong>Errore di rete:</strong> ${error.message}
+                        <br>💡 Controlla la connessione e riprova.
+                    </div>
+                `;
+            }
+        }
+
+        // Allow Enter key to trigger test
+        document.getElementById('test-url').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                testScraping();
+            }
+        });
+    </script>
+</body>
+</html>
