@@ -5,7 +5,6 @@
   "main": "api/scrape.ts",
   "scripts": {
     "start": "echo 'Usa vercel dev per sviluppo locale'",
-    "build": "echo 'No build step needed for serverless functions'",
     "test": "echo \"No tests yet\" && exit 0",
     "deploy": "vercel --prod",
     "deploy-preview": "vercel"
