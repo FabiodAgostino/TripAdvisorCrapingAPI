@@ -429,65 +429,138 @@ if (data.success) {
         }
 
         // Test scraping function
-        async function testScraping() {
-            const url = document.getElementById('test-url').value.trim();
-            const resultDiv = document.getElementById('test-result');
-            
-            if (!url) {
-                resultDiv.innerHTML = '<div class="test-result error-result">❌ Inserisci un URL TripAdvisor valido</div>';
-                return;
-            }
+        // Test scraping function - VERSIONE AGGIORNATA
+async function testScraping() {
+    const url = document.getElementById('test-url').value.trim();
+    const resultDiv = document.getElementById('test-result');
+    
+    if (!url) {
+        resultDiv.innerHTML = '<div class="test-result error-result">❌ Inserisci un URL TripAdvisor valido</div>';
+        return;
+    }
 
-            if (!url.includes('tripadvisor')) {
-                resultDiv.innerHTML = '<div class="test-result error-result">❌ L\'URL deve essere di TripAdvisor</div>';
-                return;
-            }
+    if (!url.includes('tripadvisor')) {
+        resultDiv.innerHTML = '<div class="test-result error-result">❌ L\'URL deve essere di TripAdvisor</div>';
+        return;
+    }
 
-            resultDiv.innerHTML = '<div class="test-result info-result">🔄 Estrazione in corso... Attendere...</div>';
+    resultDiv.innerHTML = '<div class="test-result info-result">🔄 Estrazione in corso... Attendere...</div>';
 
-            try {
-                const response = await fetch('/api/scrape', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ url })
-                });
+    try {
+        const response = await fetch('/api/scrape', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ url })
+        });
 
-                const data = await response.json();
+        const data = await response.json();
 
-                if (data.success && data.data) {
-                    resultDiv.innerHTML = `
-                        <div class="test-result success">
-                            <div style="font-weight: bold; margin-bottom: 10px;">✅ Estrazione completata con successo!</div>
-                            <div><strong>Nome:</strong> ${data.data.name}</div>
-                            <div><strong>Rating:</strong> ${data.data.rating} ⭐</div>
-                            <div><strong>Prezzo:</strong> ${data.data.priceRange}</div>
-                            <div><strong>Cucina:</strong> ${data.data.cuisine}</div>
-                            <div><strong>Località:</strong> ${data.data.location}</div>
-                            ${data.data.phone ? `<div><strong>Telefono:</strong> ${data.data.phone}</div>` : ''}
-                            <div style="margin-top: 10px; font-size: 0.9em; opacity: 0.8;">
-                                Tempo di elaborazione: ${data.data.processingTime || 'N/A'}ms
-                            </div>
-                        </div>
-                    `;
-                } else {
-                    resultDiv.innerHTML = `
-                        <div class="test-result error-result">
-                            ❌ <strong>Errore:</strong> ${data.error || 'Errore sconosciuto'}
-                            ${data.suggestion ? `<br>💡 <strong>Suggerimento:</strong> ${data.suggestion}` : ''}
-                        </div>
-                    `;
-                }
-            } catch (error) {
-                resultDiv.innerHTML = `
-                    <div class="test-result error-result">
-                        ❌ <strong>Errore di rete:</strong> ${error.message}
-                        <br>💡 Controlla la connessione e riprova.
+        if (data.success && data.data) {
+            // Visualizzazione riassunto + JSON completo
+            resultDiv.innerHTML = `
+                <div class="test-result success">
+                    <div style="font-weight: bold; margin-bottom: 15px;">✅ Estrazione completata con successo!</div>
+                    
+                    <!-- Riassunto veloce -->
+                    <div style="background: rgba(255,255,255,0.8); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                        <div><strong>🏪 Nome:</strong> ${data.data.name}</div>
+                        <div><strong>⭐ Rating:</strong> ${data.data.rating}</div>
+                        <div><strong>💰 Prezzo:</strong> ${data.data.priceRange}</div>
+                        <div><strong>🍽️ Cucina:</strong> ${data.data.cuisines ? data.data.cuisines.join(', ') : data.data.cuisine}</div>
+                        <div><strong>📍 Località:</strong> ${data.data.location}</div>
+                        ${data.data.phone ? `<div><strong>📞 Telefono:</strong> ${data.data.phone}</div>` : ''}
+                        ${data.data.address ? `<div><strong>🏠 Indirizzo:</strong> ${data.data.address}</div>` : ''}
                     </div>
-                `;
-            }
+                    
+                    <!-- Pulsante per mostrare/nascondere JSON -->
+                    <button onclick="toggleJson()" style="background: #D2691E; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; margin-bottom: 10px;">
+                        📋 Mostra/Nascondi JSON Completo
+                    </button>
+                    
+                    <!-- JSON completo (inizialmente nascosto) -->
+                    <div id="json-container" style="display: none;">
+                        <h4 style="margin: 15px 0 10px 0; color: #2c3e50;">📄 Dati JSON Completi:</h4>
+                        <pre style="background: #2d3748; color: #e2e8f0; padding: 20px; border-radius: 8px; overflow-x: auto; font-size: 0.85rem; line-height: 1.4; max-height: 400px; overflow-y: auto;">${JSON.stringify(data, null, 2)}</pre>
+                        
+                        <!-- Pulsante copia JSON -->
+                        <button onclick="copyJson()" style="background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; margin-top: 10px; font-size: 0.9rem;">
+                            📋 Copia JSON
+                        </button>
+                    </div>
+                    
+                    <div style="margin-top: 15px; font-size: 0.9em; opacity: 0.7;">
+                        ⏱️ Tempo di elaborazione: ${data.processingTime || 'N/A'}ms
+                    </div>
+                </div>
+            `;
+        } else {
+            resultDiv.innerHTML = `
+                <div class="test-result error-result">
+                    ❌ <strong>Errore:</strong> ${data.error || 'Errore sconosciuto'}
+                    ${data.suggestion ? `<br>💡 <strong>Suggerimento:</strong> ${data.suggestion}` : ''}
+                    
+                    <!-- Mostra JSON dell'errore -->
+                    <div style="margin-top: 15px;">
+                        <button onclick="toggleErrorJson()" style="background: #dc3545; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
+                            📋 Mostra Dettagli Errore
+                        </button>
+                        <div id="error-json-container" style="display: none; margin-top: 10px;">
+                            <pre style="background: #2d3748; color: #e2e8f0; padding: 15px; border-radius: 6px; font-size: 0.8rem; overflow-x: auto;">${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    </div>
+                </div>
+            `;
         }
+    } catch (error) {
+        resultDiv.innerHTML = `
+            <div class="test-result error-result">
+                ❌ <strong>Errore di rete:</strong> ${error.message}
+                <br>💡 Controlla la connessione e riprova.
+            </div>
+        `;
+    }
+}
+
+// Funzione per mostrare/nascondere JSON
+function toggleJson() {
+    const container = document.getElementById('json-container');
+    container.style.display = container.style.display === 'none' ? 'block' : 'none';
+}
+
+// Funzione per mostrare/nascondere JSON errore
+function toggleErrorJson() {
+    const container = document.getElementById('error-json-container');
+    container.style.display = container.style.display === 'none' ? 'block' : 'none';
+}
+
+// Funzione per copiare JSON
+function copyJson() {
+    const jsonElement = document.querySelector('#json-container pre');
+    if (jsonElement) {
+        navigator.clipboard.writeText(jsonElement.textContent).then(() => {
+            // Feedback visivo
+            const button = event.target;
+            const originalText = button.textContent;
+            button.textContent = '✅ Copiato!';
+            button.style.background = '#28a745';
+            setTimeout(() => {
+                button.textContent = originalText;
+                button.style.background = '#28a745';
+            }, 2000);
+        }).catch(err => {
+            console.error('Errore nel copiare:', err);
+            // Fallback per browser più vecchi
+            const textArea = document.createElement('textarea');
+            textArea.value = jsonElement.textContent;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+        });
+    }
+}
 
         // Allow Enter key to trigger test
         document.getElementById('test-url').addEventListener('keypress', function(e) {
