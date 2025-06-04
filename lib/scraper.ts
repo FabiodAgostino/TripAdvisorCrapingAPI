@@ -148,23 +148,42 @@ async function extractDataFromHTML(html: string, sourceUrl: string): Promise<Ext
     'pugliese': ['pugliese', 'apulian', 'puglia', 'salentina', 'salento', 'tipica pugliese'],
     'italiana': ['italiana', 'italian', 'italy', 'tradizionale italiana'],
     'mediterranea': ['mediterranea', 'mediterranean', 'mediter'],
-    'pesce': ['pesce', 'seafood', 'fish', 'mare', 'frutti di mare', 'crudo', 'sushi', 'sashimi'],
+    'pesce': ['pesce', 'seafood', 'fish', 'mare', 'frutti di mare', 'crudo'],
     'barbecue': ['barbecue', 'grill', 'griglia', 'alla griglia', 'bbq', 'braceria'],
     'steakhouse': ['steakhouse', 'steak', 'bistecca', 'carne', 'beef', 'braceria']
   };
 
   // Cerca nella classe specifica per le cuisines
-  $('.biGQs._P.pZUbB.KxBGd').each((i, elem) => {
-    const text = $(elem).text().trim().toLowerCase();
+ const cuisineContainer = $('.HUMGB.cPbcf');
+let found = false;
+
+if (cuisineContainer.length > 0) {
+  console.log('🔍 Trovato contenitore cucine specifico');
+  
+  cuisineContainer.each((index, container) => {
+    const $container = $(container);
     
-    Object.entries(cuisineMapping).forEach(([cuisineType, keywords]) => {
-      if (keywords.some(keyword => text.includes(keyword))) {
-        if (!cuisines.includes(cuisineType)) {
-          cuisines.push(cuisineType);
-        }
+    // Estrae tutti i testi dalle span con classe specifica all'interno del contenitore
+    $container.find('span.biGQs._P.pZUbB.KxBGd').each((i, elem) => {
+      const text = $(elem).text().trim().toLowerCase();
+      console.log(`📝 Testo trovato: "${text}"`);
+      
+      // Esclude i prezzi (contengono €)
+      if (!text.includes('€')) {
+        // Controlla se corrisponde a una cucina
+        Object.entries(cuisineMapping).forEach(([cuisineType, keywords]) => {
+          if (keywords.some(keyword => text.includes(keyword))) {
+            if (!cuisines.includes(cuisineType)) {
+              cuisines.push(cuisineType);
+              console.log(`✅ Cucina trovata: ${cuisineType} (da "${text}")`);
+              found = true;
+            }
+          }
+        });
       }
     });
   });
+}
 
   // Fallback search in other areas
   if (cuisines.length === 0) {
@@ -274,13 +293,26 @@ async function extractDataFromHTML(html: string, sourceUrl: string): Promise<Ext
 
   // Extract phone - IDENTICO AL METODO API
   let phone = "";
-  $('.biGQs._P.pZUbB.KxBGd').each((i, elem) => {
-    const text = $(elem).text().trim();
-    const phoneMatch = text.match(/(\+39\s?)?(\d{2,4}\s?\d{6,8}|\d{3}\s?\d{3}\s?\d{4})/);
+
+// Strategia 1: Cerca specificamente nei link tel: con la classe corretta
+$('a[href^="tel:"]').each((i, elem) => {
+  const $link = $(elem);
+  
+  // Cerca la span con la classe specifica del numero
+  const phoneSpan = $link.find('span.biGQs._P.XWJSj.Wb');
+  if (phoneSpan.length > 0) {
+    const phoneText = phoneSpan.text().trim();
+    console.log(`📞 Telefono trovato in link tel: "${phoneText}"`);
+    
+    // Validazione formato telefono italiano
+    const phoneMatch = phoneText.match(/(\+39\s?)?(\d{2,4}\s?\d{6,8}|\d{3}\s?\d{3}\s?\d{4})/);
     if (phoneMatch && !phone) {
-      phone = phoneMatch[0];
+      phone = phoneText;
+      console.log(`✅ Telefono estratto: ${phone}`);
+      return false; // Ferma il loop
     }
-  });
+  }
+});
 
   return {
     name,
