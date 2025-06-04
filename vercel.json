@@ -1,13 +1,35 @@
 {
-  "functions": {
-    "api/**/*.ts": {
-      "runtime": "@vercel/node@2.15.10"
-    }
+  "name": "salento-scraping-api",
+  "version": "1.0.0",
+  "description": "API Serverless per scraping ristoranti TripAdvisor - Salento",
+  "main": "api/scrape.ts",
+  "scripts": {
+    "start": "vercel dev",
+    "build": "tsc --noEmit",
+    "test": "echo \"No tests yet\" && exit 0",
+    "deploy": "vercel --prod",
+    "deploy-preview": "vercel"
   },
-  "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/$1"
-    }
-  ]
+  "keywords": [
+    "scraping",
+    "tripadvisor",
+    "restaurants",
+    "salento",
+    "serverless",
+    "vercel"
+  ],
+  "author": "Fabio D'Agostino",
+  "license": "MIT",
+  "dependencies": {
+    "@vercel/node": "^3.0.14",
+    "axios": "^1.6.2",
+    "cheerio": "^1.0.0-rc.12"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.2"
+  },
+  "engines": {
+    "node": "18.x"
+  }
 }
