@@ -74,6 +74,13 @@ export async function scrapeTripAdvisor(
         if (!blockCheck.success) {
           console.log(`🚫 Tentativo ${attempt + 1} bloccato: ${blockCheck.reason}`);
           
+          // Per pagine troppo corte, prova una strategia diversa prima di fallire
+          if (blockCheck.reason?.includes('troppo corta') && attempt < retries) {
+            console.log('🔄 Strategia alternativa per pagina corta...');
+            await randomDelay(3000, 6000); // Delay più lungo
+            continue;
+          }
+          
           if (attempt < retries) {
             // Delay più lungo tra tentativi quando bloccato
             await randomDelay(2000, 4000);
@@ -135,54 +142,42 @@ async function scrapeWithPuppeteer(url: string, options: {
   try {
     console.log(`🚀 Launching Puppeteer for attempt ${options.attempt + 1}`);
     
-    // Configurazione browser super ottimizzata
+    // Configurazione browser STEALTH per evitare detection
     const launchOptions = {
-      headless: true,
+      headless: true, // Cambiato a boolean per compatibilità
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--no-zygote',
-        '--single-process', // Importante per Vercel
-        '--disable-gpu',
+        '--disable-blink-features=AutomationControlled', // IMPORTANTE: nasconde automazione
+        '--disable-features=VizDisplayCompositor',
         '--disable-background-timer-throttling',
         '--disable-backgrounding-occluded-windows',
         '--disable-renderer-backgrounding',
-        '--disable-features=TranslateUI',
-        '--disable-ipc-flooding-protection',
-        '--disable-extensions',
+        '--disable-infobars',
+        '--disable-extensions-file-access-check',
+        '--disable-extensions-http-throttling',
+        '--disable-extensions-https-enforced',
         '--disable-default-apps',
+        '--no-first-run',
         '--disable-sync',
         '--disable-translate',
         '--hide-scrollbars',
         '--mute-audio',
         '--no-default-browser-check',
-        '--no-first-run',
         '--disable-background-networking',
-        '--disable-background-media-streaming',
-        '--disable-client-side-phishing-detection',
-        '--disable-component-extensions-with-background-pages',
-        '--disable-hang-monitor',
-        '--disable-prompt-on-repost',
         '--disable-web-security',
-        '--metrics-recording-only',
-        '--safebrowsing-disable-auto-update',
-        '--password-store=basic',
-        '--use-mock-keychain',
-        // Performance optimizations
-        '--memory-pressure-off',
-        '--max_old_space_size=4096',
-        '--disable-images', // Skip images for speed
-        '--disable-javascript', // Skip JS if not needed for content
-        '--disable-css', // Skip CSS loading
-        '--disable-plugins',
-        '--disable-extensions'
+        '--disable-features=TranslateUI',
+        '--disable-ipc-flooding-protection',
+        // STEALTH flags specifici
+        '--disable-automation', 
+        '--exclude-switches=enable-automation',
+        '--disable-blink-features=AutomationControlled',
+        '--user-agent=' + options.userAgent
       ],
-      timeout: 8000, // Timeout per launch
-      protocolTimeout: 8000,
-      ignoreDefaultArgs: ['--disable-extensions'],
+      timeout: 10000, // Aumentato timeout
+      protocolTimeout: 10000,
+      ignoreDefaultArgs: ['--enable-automation', '--enable-blink-features=AutomationControlled'],
       defaultViewport: {
         width: 1366,
         height: 768,
@@ -192,17 +187,33 @@ async function scrapeWithPuppeteer(url: string, options: {
       }
     };
 
-    // Cerca di riutilizzare browser globale se disponibile
-    if (globalBrowser && globalBrowser.isConnected()) {
-      console.log('🔄 Riutilizzo browser esistente');
-      browser = globalBrowser;
-    } else {
-      console.log('🆕 Creazione nuovo browser');
-      browser = await puppeteer.launch(launchOptions);
-      globalBrowser = browser;
-    }
+    // NON riutilizzare browser - problemi di stability con TripAdvisor
+    console.log('🆕 Creazione nuovo browser per ogni richiesta');
+    browser = await puppeteer.launch(launchOptions);
 
     page = await browser.newPage();
+    
+    // STEALTH: Rimuovi webdriver property
+    await page.evaluateOnNewDocument(() => {
+      Object.defineProperty((globalThis as any).navigator, 'webdriver', {
+        get: () => undefined,
+      });
+      
+      // Nasconde chrome object
+      (globalThis as any).chrome = {
+        runtime: {},
+      };
+      
+      // Simula plugins reali
+      Object.defineProperty((globalThis as any).navigator, 'plugins', {
+        get: () => [1, 2, 3, 4, 5],
+      });
+      
+      // Simula lingue
+      Object.defineProperty((globalThis as any).navigator, 'languages', {
+        get: () => ['it-IT', 'it', 'en-US', 'en'],
+      });
+    });
     
     // Configurazione page ottimizzata
     await page.setUserAgent(options.userAgent);
@@ -231,18 +242,18 @@ async function scrapeWithPuppeteer(url: string, options: {
 
     await page.setExtraHTTPHeaders(extraHeaders);
 
-    // Disabilita immagini, CSS e JS per velocità
+    // Disabilita solo immagini per velocità, mantieni CSS e JS
     await page.setRequestInterception(true);
     
     page.on('request', (req) => {
       const resourceType = req.resourceType();
       
-      if (['image', 'stylesheet', 'font', 'media'].includes(resourceType)) {
+      if (['image', 'font', 'media'].includes(resourceType)) {
         req.abort();
       } else if (resourceType === 'script') {
-        // Blocca JS non essenziali ma permetti quelli che potrebbero caricare il contenuto
+        // Blocca solo analytics e ads, mantieni script core
         const url = req.url();
-        if (url.includes('analytics') || url.includes('ads') || url.includes('tracking')) {
+        if (url.includes('analytics') || url.includes('ads') || url.includes('tracking') || url.includes('gtag')) {
           req.abort();
         } else {
           req.continue();
@@ -252,34 +263,73 @@ async function scrapeWithPuppeteer(url: string, options: {
       }
     });
 
+    // Navigazione con strategia più robusta
     console.log(`📤 Navigating to: ${url}`);
     
-    // Navigazione con timeout aggressivo
-    await page.goto(url, {
-      waitUntil: 'domcontentloaded', // Non aspettare tutte le risorse
-      timeout: options.timeout
-    });
+    try {
+      await page.goto(url, {
+        waitUntil: 'networkidle2', // Aspetta che la rete sia relativamente calma
+        timeout: options.timeout
+      });
+    } catch (error) {
+      console.log('⚠️ Fallback a domcontentloaded per pagina lenta');
+      await page.goto(url, {
+        waitUntil: 'domcontentloaded',
+        timeout: options.timeout
+      });
+    }
+
+    // Attendi che elementi chiave siano caricati con multiple strategie
+    let elementsFound = false;
+    
+    try {
+      await page.waitForSelector('h1, .biGQs, [data-test-target]', { timeout: 3000 });
+      elementsFound = true;
+      console.log('✅ Elementi trovati con primo selettore');
+    } catch (e) {
+      console.log('⚠️ Primo selettore fallito, provo alternativo');
+      
+      try {
+        await page.waitForSelector('title, body', { timeout: 2000 });
+        elementsFound = true;
+        console.log('✅ Elementi base trovati');
+      } catch (e2) {
+        console.log('⚠️ Timeout attesa selettori, procedo comunque');
+      }
+    }
+
+    // Se non troviamo elementi, aspetta di più e riprova
+    if (!elementsFound) {
+      console.log('🔄 Attesa aggiuntiva per caricamento...');
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    }
 
     // Simula comportamento umano con scroll veloce
     await page.evaluate(() => {
       (globalThis as any).scrollTo(0, Math.floor(Math.random() * 500));
     });
 
-    // Attesa minima per caricamento contenuto
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Attesa finale per caricamento contenuto
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
     // Estrai HTML
     console.log('📄 Extracting HTML content');
     const html = await page.content();
     
     console.log(`✅ HTML estratto: ${html.length} caratteri`);
+    
+    // DEBUG: Log primi 500 caratteri per capire cosa stiamo ricevendo
+    if (html.length < 10000) {
+      console.log('🔍 HTML Content Sample:', html.substring(0, 500));
+    }
+    
     return html;
 
   } catch (error) {
     console.error('❌ Errore Puppeteer:', error);
     throw error;
   } finally {
-    // Chiudi solo la page, non il browser (per riutilizzo)
+    // SEMPRE chiudi page e browser completamente
     if (page) {
       try {
         await page.close();
@@ -289,14 +339,20 @@ async function scrapeWithPuppeteer(url: string, options: {
       }
     }
     
-    // NON chiudere il browser globale per riutilizzo
-    // Il browser sarà chiuso automaticamente quando il processo termina
+    if (browser) {
+      try {
+        await browser.close();
+        console.log('🌐 Browser chiuso');
+      } catch (e) {
+        console.log('⚠️ Errore chiusura browser:', e);
+      }
+    }
   }
 }
 
 function checkIfBlocked(html: string): { success: boolean; reason?: string } {
-  // Controlla lunghezza HTML (pagine bloccate sono spesso molto corte)
-  if (html.length < 5000) {
+  // Soglia più bassa per pagine problematiche specifiche
+  if (html.length < 2000) {
     return { 
       success: false, 
       reason: `Pagina troppo corta (${html.length} caratteri) - possibile blocco` 
@@ -310,6 +366,16 @@ function checkIfBlocked(html: string): { success: boolean; reason?: string } {
   const titleMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i);
   const pageTitle = titleMatch ? titleMatch[1].toLowerCase() : '';
   console.log(`📄 Page title: "${pageTitle}"`);
+  
+  // DETECTION SPECIFICA per Cloudflare CAPTCHA
+  if (lowerHtml.includes('captcha-delive') || 
+      lowerHtml.includes('cf-challenge') ||
+      pageTitle === 'tripadvisor.it' && html.length < 5000) {
+    return { 
+      success: false, 
+      reason: 'Cloudflare CAPTCHA/Challenge rilevato - questa pagina ha protezioni extra' 
+    };
+  }
   
   for (const pattern of BLOCKED_PATTERNS) {
     if (pageTitle.includes(pattern)) {
@@ -334,7 +400,8 @@ function checkIfBlocked(html: string): { success: boolean; reason?: string } {
   const hasRestaurantElements = lowerHtml.includes('biGQs') || 
                                lowerHtml.includes('<h1') || 
                                lowerHtml.includes('hjbfq') ||
-                               lowerHtml.includes('tripadvisor');
+                               lowerHtml.includes('tripadvisor') ||
+                               lowerHtml.includes('restaurant');
   
   if (!hasRestaurantElements) {
     return { 
