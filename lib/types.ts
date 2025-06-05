@@ -50,6 +50,7 @@ export interface HealthCheckResponse {
   timestamp: string;
   uptime: number;
   version: string;
+  responseTime?: string; // ✅ Aggiungi questo
   services: {
     scraping: 'operational' | 'degraded' | 'down';
     external_apis: 'operational' | 'degraded' | 'down';
