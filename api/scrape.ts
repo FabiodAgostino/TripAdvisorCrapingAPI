@@ -77,7 +77,7 @@ export default async function handler(
 
     // Timeout per Vercel (9 secondi max)
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('API_TIMEOUT')), 9000);
+      setTimeout(() => reject(new Error('API_TIMEOUT')), 30000);
     });
 
     const result = await Promise.race([
