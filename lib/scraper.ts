@@ -1,11 +1,13 @@
 // lib/scraper.ts
-import axios, { AxiosResponse } from 'axios';
-import * as cheerio from 'cheerio';
+import puppeteer, { Browser, Page } from 'puppeteer';
 import { 
   ExtractedRestaurant, 
   ScrapingOptions, 
   ScrapingResponse 
 } from './types';
+
+// Browser globale per riutilizzo (se possibile in Vercel)
+let globalBrowser: Browser | null = null;
 
 const DEFAULT_USER_AGENTS = [
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -45,17 +47,14 @@ export async function scrapeTripAdvisor(
       };
     }
 
-    // Configurazione opzioni
+    // Configurazione opzioni - timeout ridotti per Vercel
     const {
-      timeout = 9000, // Ridotto per Vercel
-      retries = 2,    // Aumentato tentativi
+      timeout = 7000,  // Ridotto per Vercel Hobby
+      retries = 1,     // Solo 1 retry per risparmiare tempo
       userAgent
     } = options;
 
-    console.log(`🔍 Iniziando scraping: ${trimmedUrl}`);
-
-    // Delay iniziale per sembrare più umano
-    await randomDelay(1000, 3000);
+    console.log(`🔍 Iniziando scraping con Puppeteer: ${trimmedUrl}`);
 
     let lastError: Error | null = null;
     
@@ -64,20 +63,20 @@ export async function scrapeTripAdvisor(
       try {
         console.log(`🔄 Tentativo ${attempt + 1}/${retries + 1}`);
         
-        const response = await makeRequest(trimmedUrl, {
+        const html = await scrapeWithPuppeteer(trimmedUrl, {
           timeout,
           userAgent: userAgent || getRandomUserAgent(),
           attempt
         });
 
         // Verifica se la richiesta è stata bloccata
-        const blockCheck = checkIfBlocked(response.data);
+        const blockCheck = checkIfBlocked(html);
         if (!blockCheck.success) {
           console.log(`🚫 Tentativo ${attempt + 1} bloccato: ${blockCheck.reason}`);
           
           if (attempt < retries) {
             // Delay più lungo tra tentativi quando bloccato
-            await randomDelay(3000, 8000);
+            await randomDelay(2000, 4000);
             continue;
           } else {
             // Ultimo tentativo fallito
@@ -92,7 +91,7 @@ export async function scrapeTripAdvisor(
         }
 
         // Estrazione dati dalla pagina
-        const extractedData = await extractDataFromHTML(response.data, trimmedUrl);
+        const extractedData = await extractDataFromHTML(html, trimmedUrl);
         const processingTime = Date.now() - startTime;
 
         console.log(`✅ Scraping completato in ${processingTime}ms: ${extractedData.name}`);
@@ -109,7 +108,7 @@ export async function scrapeTripAdvisor(
         
         if (attempt < retries) {
           // Delay progressivo tra tentativi
-          await randomDelay(2000 * (attempt + 1), 4000 * (attempt + 1));
+          await randomDelay(1000 * (attempt + 1), 2000 * (attempt + 1));
         }
       }
     }
@@ -124,51 +123,175 @@ export async function scrapeTripAdvisor(
   }
 }
 
-async function makeRequest(url: string, options: {
+async function scrapeWithPuppeteer(url: string, options: {
   timeout: number;
   userAgent: string;
   attempt: number;
-}): Promise<AxiosResponse<string>> {
+}): Promise<string> {
   
-  // Headers più realistici basati sul tentativo
-  const baseHeaders: Record<string, string> = {
-    'User-Agent': options.userAgent,
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-    'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
-    'Accept-Encoding': 'gzip, deflate, br',
-    'Cache-Control': 'max-age=0',
-    'Sec-Fetch-Dest': 'document',
-    'Sec-Fetch-Mode': 'navigate',
-    'Sec-Fetch-Site': 'none',
-    'Sec-Fetch-User': '?1',
-    'Upgrade-Insecure-Requests': '1',
-    'Connection': 'keep-alive'
-  };
+  let browser: Browser | null = null;
+  let page: Page | null = null;
+  
+  try {
+    console.log(`🚀 Launching Puppeteer for attempt ${options.attempt + 1}`);
+    
+    // Configurazione browser super ottimizzata
+    const launchOptions = {
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process', // Importante per Vercel
+        '--disable-gpu',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding',
+        '--disable-features=TranslateUI',
+        '--disable-ipc-flooding-protection',
+        '--disable-extensions',
+        '--disable-default-apps',
+        '--disable-sync',
+        '--disable-translate',
+        '--hide-scrollbars',
+        '--mute-audio',
+        '--no-default-browser-check',
+        '--no-first-run',
+        '--disable-background-networking',
+        '--disable-background-media-streaming',
+        '--disable-client-side-phishing-detection',
+        '--disable-component-extensions-with-background-pages',
+        '--disable-hang-monitor',
+        '--disable-prompt-on-repost',
+        '--disable-web-security',
+        '--metrics-recording-only',
+        '--safebrowsing-disable-auto-update',
+        '--password-store=basic',
+        '--use-mock-keychain',
+        // Performance optimizations
+        '--memory-pressure-off',
+        '--max_old_space_size=4096',
+        '--disable-images', // Skip images for speed
+        '--disable-javascript', // Skip JS if not needed for content
+        '--disable-css', // Skip CSS loading
+        '--disable-plugins',
+        '--disable-extensions'
+      ],
+      timeout: 8000, // Timeout per launch
+      protocolTimeout: 8000,
+      ignoreDefaultArgs: ['--disable-extensions'],
+      defaultViewport: {
+        width: 1366,
+        height: 768,
+        isMobile: false,
+        hasTouch: false,
+        isLandscape: true
+      }
+    };
 
-  // Variazioni negli headers per ogni tentativo
-  const headers: Record<string, string> = { ...baseHeaders };
-  
-  if (options.attempt === 1) {
-    headers['Referer'] = 'https://www.google.it/';
-  } else if (options.attempt === 2) {
-    headers['Referer'] = 'https://www.tripadvisor.it/';
-    headers['Accept-Language'] = 'en-US,en;q=0.9,it;q=0.8';
+    // Cerca di riutilizzare browser globale se disponibile
+    if (globalBrowser && globalBrowser.isConnected()) {
+      console.log('🔄 Riutilizzo browser esistente');
+      browser = globalBrowser;
+    } else {
+      console.log('🆕 Creazione nuovo browser');
+      browser = await puppeteer.launch(launchOptions);
+      globalBrowser = browser;
+    }
+
+    page = await browser.newPage();
+    
+    // Configurazione page ottimizzata
+    await page.setUserAgent(options.userAgent);
+    
+    // Set extra headers per sembrare più umano
+    const extraHeaders: Record<string, string> = {
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+      'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'Cache-Control': 'max-age=0',
+      'Sec-Fetch-Dest': 'document',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-Site': 'none',
+      'Sec-Fetch-User': '?1',
+      'Upgrade-Insecure-Requests': '1',
+      'Connection': 'keep-alive'
+    };
+
+    // Variazioni negli headers per ogni tentativo
+    if (options.attempt === 1) {
+      extraHeaders['Referer'] = 'https://www.google.it/';
+    } else if (options.attempt === 2) {
+      extraHeaders['Referer'] = 'https://www.tripadvisor.it/';
+      extraHeaders['Accept-Language'] = 'en-US,en;q=0.9,it;q=0.8';
+    }
+
+    await page.setExtraHTTPHeaders(extraHeaders);
+
+    // Disabilita immagini, CSS e JS per velocità
+    await page.setRequestInterception(true);
+    
+    page.on('request', (req) => {
+      const resourceType = req.resourceType();
+      
+      if (['image', 'stylesheet', 'font', 'media'].includes(resourceType)) {
+        req.abort();
+      } else if (resourceType === 'script') {
+        // Blocca JS non essenziali ma permetti quelli che potrebbero caricare il contenuto
+        const url = req.url();
+        if (url.includes('analytics') || url.includes('ads') || url.includes('tracking')) {
+          req.abort();
+        } else {
+          req.continue();
+        }
+      } else {
+        req.continue();
+      }
+    });
+
+    console.log(`📤 Navigating to: ${url}`);
+    
+    // Navigazione con timeout aggressivo
+    await page.goto(url, {
+      waitUntil: 'domcontentloaded', // Non aspettare tutte le risorse
+      timeout: options.timeout
+    });
+
+    // Simula comportamento umano con scroll veloce
+    await page.evaluate(() => {
+      (globalThis as any).scrollTo(0, Math.floor(Math.random() * 500));
+    });
+
+    // Attesa minima per caricamento contenuto
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Estrai HTML
+    console.log('📄 Extracting HTML content');
+    const html = await page.content();
+    
+    console.log(`✅ HTML estratto: ${html.length} caratteri`);
+    return html;
+
+  } catch (error) {
+    console.error('❌ Errore Puppeteer:', error);
+    throw error;
+  } finally {
+    // Chiudi solo la page, non il browser (per riutilizzo)
+    if (page) {
+      try {
+        await page.close();
+        console.log('📄 Page chiusa');
+      } catch (e) {
+        console.log('⚠️ Errore chiusura page:', e);
+      }
+    }
+    
+    // NON chiudere il browser globale per riutilizzo
+    // Il browser sarà chiuso automaticamente quando il processo termina
   }
-
-  console.log(`📤 Request headers for attempt ${options.attempt + 1}:`, {
-    'User-Agent': headers['User-Agent'].substring(0, 50) + '...',
-    'Referer': headers['Referer'] || 'none'
-  });
-
-  return axios.get(url, {
-    headers,
-    timeout: options.timeout,
-    maxRedirects: 5,
-    validateStatus: (status) => status < 500,
-    // Configurazioni aggiuntive per evitare detection
-    maxContentLength: 50 * 1024 * 1024, // 50MB max
-    maxBodyLength: 50 * 1024 * 1024
-  });
 }
 
 function checkIfBlocked(html: string): { success: boolean; reason?: string } {
@@ -180,11 +303,12 @@ function checkIfBlocked(html: string): { success: boolean; reason?: string } {
     };
   }
 
-  // Carica HTML con Cheerio per analisi
-  const $ = cheerio.load(html);
+  // Usa API DOM invece di Cheerio per velocità
+  const lowerHtml = html.toLowerCase();
   
   // Controlla title della pagina
-  const pageTitle = $('title').text().toLowerCase();
+  const titleMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i);
+  const pageTitle = titleMatch ? titleMatch[1].toLowerCase() : '';
   console.log(`📄 Page title: "${pageTitle}"`);
   
   for (const pattern of BLOCKED_PATTERNS) {
@@ -197,11 +321,8 @@ function checkIfBlocked(html: string): { success: boolean; reason?: string } {
   }
 
   // Controlla body della pagina
-  const bodyText = $('body').text().toLowerCase();
-  const bodyClasses = $('body').attr('class') || '';
-  
   for (const pattern of BLOCKED_PATTERNS) {
-    if (bodyText.includes(pattern) || bodyClasses.includes(pattern)) {
+    if (lowerHtml.includes(pattern)) {
       return { 
         success: false, 
         reason: `Contenuto pagina contiene "${pattern}"` 
@@ -210,9 +331,10 @@ function checkIfBlocked(html: string): { success: boolean; reason?: string } {
   }
 
   // Controlla se contiene elementi tipici di TripAdvisor
-  const hasRestaurantElements = $('.biGQs._P.hzzSG.rRtyp').length > 0 || 
-                               $('h1').length > 0 || 
-                               $('.HjBfq').length > 0;
+  const hasRestaurantElements = lowerHtml.includes('biGQs') || 
+                               lowerHtml.includes('<h1') || 
+                               lowerHtml.includes('hjbfq') ||
+                               lowerHtml.includes('tripadvisor');
   
   if (!hasRestaurantElements) {
     return { 
@@ -222,9 +344,9 @@ function checkIfBlocked(html: string): { success: boolean; reason?: string } {
   }
 
   // Controlla presence di CAPTCHA o form di verifica
-  if ($('form[action*="captcha"]').length > 0 || 
-      $('.captcha').length > 0 || 
-      $('input[name*="captcha"]').length > 0) {
+  if (lowerHtml.includes('captcha') || 
+      lowerHtml.includes('verification') ||
+      lowerHtml.includes('challenge')) {
     return { 
       success: false, 
       reason: 'CAPTCHA rilevato nella pagina' 
@@ -236,21 +358,20 @@ function checkIfBlocked(html: string): { success: boolean; reason?: string } {
 }
 
 async function extractDataFromHTML(html: string, sourceUrl: string): Promise<ExtractedRestaurant> {
-  const $ = cheerio.load(html);
-  
+  // Usa regex invece di Cheerio per velocità quando possibile
   console.log(`🔍 Inizio estrazione dati da HTML (${html.length} caratteri)`);
 
-  // Extract restaurant name con fallback multipli
-  let name = $('.biGQs._P.hzzSG.rRtyp').first().text().trim();
-  if (!name) name = $('h1').first().text().trim();
-  if (!name) name = $('.HjBfq').first().text().trim();
-  if (!name) name = $('[data-test-target="restaurant-detail-overview"] h1').first().text().trim();
-  if (!name) name = "Ristorante";
+  // Extract restaurant name con regex prima, poi fallback
+  let name = extractWithRegex(html, /<[^>]*class="[^"]*biGQs[^"]*_P[^"]*hzzSG[^"]*rRtyp[^"]*"[^>]*>([^<]+)</) ||
+             extractWithRegex(html, /<h1[^>]*>([^<]+)<\/h1>/) ||
+             extractWithRegex(html, /<[^>]*class="[^"]*HjBfq[^"]*"[^>]*>([^<]+)</) ||
+             "Ristorante";
   
+  name = cleanText(name);
   console.log(`🏪 Nome estratto: "${name}"`);
 
-  // Extract rating con validazione
-  const ratingText = $('.biGQs._P.pZUbB.KxBGd').first().text().trim();
+  // Extract rating con regex
+  const ratingText = extractWithRegex(html, /<[^>]*class="[^"]*biGQs[^"]*_P[^"]*pZUbB[^"]*KxBGd[^"]*"[^>]*>([^<]*\d+\.?\d*[^<]*)</) || "4.0";
   const ratingMatch = ratingText.match(/(\d+\.?\d*)/);
   let rating = ratingMatch ? ratingMatch[1] : "4.0";
   
@@ -262,24 +383,21 @@ async function extractDataFromHTML(html: string, sourceUrl: string): Promise<Ext
   
   console.log(`⭐ Rating estratto: ${rating}`);
 
-  // Extract price range con ricerca migliorata
+  // Extract price range con ricerca nel testo
   let priceRange = "€€";
-  $('.biGQs._P.pZUbB.KxBGd').each((i, elem) => {
-    const text = $(elem).text().trim();
-    if (text.includes('€€€€')) {
-      priceRange = "€€€€";
-    } else if (text.includes('€€€')) {
-      priceRange = "€€€";
-    } else if (text.includes('€€')) {
-      priceRange = "€€";
-    } else if (text.includes('€') && !text.includes('€€')) {
-      priceRange = "€";
-    }
-  });
+  if (html.includes('€€€€')) {
+    priceRange = "€€€€";
+  } else if (html.includes('€€€')) {
+    priceRange = "€€€";
+  } else if (html.includes('€€')) {
+    priceRange = "€€";
+  } else if (html.includes('€') && !html.includes('€€')) {
+    priceRange = "€";
+  }
   
   console.log(`💰 Fascia prezzo: ${priceRange}`);
 
-  // Extract multiple cuisine types con mappatura migliorata
+  // Extract cuisines con regex veloce
   const cuisines: string[] = [];
   const cuisineMapping = {
     'pugliese': ['pugliese', 'apulian', 'puglia', 'salentina', 'salento', 'tipica pugliese', 'regional italian'],
@@ -290,68 +408,16 @@ async function extractDataFromHTML(html: string, sourceUrl: string): Promise<Ext
     'steakhouse': ['steakhouse', 'steak', 'bistecca', 'carne', 'beef', 'braceria', 'meat']
   };
 
-  // Strategia migliorata per trovare cucine
-  const cuisineContainer = $('.HUMGB.cPbcf');
-  let found = false;
-
-  if (cuisineContainer.length > 0) {
-    console.log('🔍 Trovato contenitore cucine specifico');
-    
-    cuisineContainer.each((index, container) => {
-      const $container = $(container);
-      
-      $container.find('span.biGQs._P.pZUbB.KxBGd').each((i, elem) => {
-        const text = $(elem).text().trim().toLowerCase();
-        
-        if (!text.includes('€') && text.length > 2) {
-          console.log(`📝 Analizzando testo cucina: "${text}"`);
-          
-          Object.entries(cuisineMapping).forEach(([cuisineType, keywords]) => {
-            if (keywords.some(keyword => text.includes(keyword.toLowerCase()))) {
-              if (!cuisines.includes(cuisineType)) {
-                cuisines.push(cuisineType);
-                console.log(`✅ Cucina trovata: ${cuisineType} (da "${text}")`);
-                found = true;
-              }
-            }
-          });
-        }
-      });
-    });
-  }
-
-  // Fallback search in altre aree
-  if (cuisines.length === 0) {
-    console.log('🔍 Ricerca cucine in aree alternative...');
-    
-    // Cerca in overview
-    $('[data-test-target="restaurant-detail-overview"]').find('span, div').each((i, elem) => {
-      const text = $(elem).text().trim().toLowerCase();
-      if (text.length > 3 && text.length < 50) {
-        Object.entries(cuisineMapping).forEach(([cuisineType, keywords]) => {
-          if (keywords.some(keyword => text.includes(keyword))) {
-            if (!cuisines.includes(cuisineType)) {
-              cuisines.push(cuisineType);
-              console.log(`✅ Cucina trovata (fallback): ${cuisineType}`);
-            }
-          }
-        });
+  const lowerHtml = html.toLowerCase();
+  
+  Object.entries(cuisineMapping).forEach(([cuisineType, keywords]) => {
+    if (keywords.some(keyword => lowerHtml.includes(keyword.toLowerCase()))) {
+      if (!cuisines.includes(cuisineType)) {
+        cuisines.push(cuisineType);
+        console.log(`✅ Cucina trovata: ${cuisineType}`);
       }
-    });
-
-    // Cerca in breadcrumbs
-    $('.breadcrumbs, [role="navigation"]').find('span, a').each((i, elem) => {
-      const text = $(elem).text().trim().toLowerCase();
-      Object.entries(cuisineMapping).forEach(([cuisineType, keywords]) => {
-        if (keywords.some(keyword => text.includes(keyword))) {
-          if (!cuisines.includes(cuisineType)) {
-            cuisines.push(cuisineType);
-            console.log(`✅ Cucina trovata (breadcrumb): ${cuisineType}`);
-          }
-        }
-      });
-    });
-  }
+    }
+  });
 
   // Default se non trova nulla
   if (cuisines.length === 0) {
@@ -361,11 +427,13 @@ async function extractDataFromHTML(html: string, sourceUrl: string): Promise<Ext
   
   console.log(`🍽️ Cucine finali: [${cuisines.join(', ')}]`);
 
-  // Extract description con fallback
-  let description = $('.biGQs._P.pZUbB.avBIb.KxBGd').first().text().trim();
-  if (!description) description = $('.biGQs._P.pZUbB.hmDzD').first().text().trim();
-  if (!description) description = $('[data-test-target="restaurant-detail-overview"] p').first().text().trim();
-  if (!description) description = "Authentic restaurant serving local specialties";
+  // Extract description con regex
+  let description = extractWithRegex(html, /<[^>]*class="[^"]*biGQs[^"]*_P[^"]*pZUbB[^"]*avBIb[^"]*KxBGd[^"]*"[^>]*>([^<]+)</) ||
+                   extractWithRegex(html, /<[^>]*class="[^"]*biGQs[^"]*_P[^"]*pZUbB[^"]*hmDzD[^"]*"[^>]*>([^<]+)</) ||
+                   extractWithRegex(html, /<p[^>]*>([^<]{50,})<\/p>/) ||
+                   "Authentic restaurant serving local specialties";
+  
+  description = cleanText(description);
   
   // Limita lunghezza descrizione
   if (description.length > 300) {
@@ -374,12 +442,12 @@ async function extractDataFromHTML(html: string, sourceUrl: string): Promise<Ext
   
   console.log(`📝 Descrizione: "${description.substring(0, 50)}..."`);
 
-  // Extract address con miglioramenti
-  let address = $('.biGQs._P.fiohW.fOtGX').first().text().trim();
-  if (!address) address = $('.AYHFM').first().text().trim();
-  if (!address) address = $('[data-test-target="location-detail"] span').first().text().trim();
-  if (!address) address = "Salento, Puglia";
+  // Extract address con regex
+  let address = extractWithRegex(html, /<[^>]*class="[^"]*biGQs[^"]*_P[^"]*fiohW[^"]*fOtGX[^"]*"[^>]*>([^<]+)</) ||
+               extractWithRegex(html, /<[^>]*class="[^"]*AYHFM[^"]*"[^>]*>([^<]+)</) ||
+               "Salento, Puglia";
   
+  address = cleanText(address);
   console.log(`🏠 Indirizzo: "${address}"`);
 
   // Extract coordinates e location
@@ -387,29 +455,19 @@ async function extractDataFromHTML(html: string, sourceUrl: string): Promise<Ext
   let longitude = "18.1750";
   let location = "Salento";
 
-  // Cerca link di Google Maps con pattern migliorati
-  $('a').each((i, elem) => {
-    const href = $(elem).attr('href');
-    if (href && (href.includes('maps.google.com') || href.includes('goo.gl/maps') || href.includes('maps.app.goo.gl'))) {
-      console.log(`🗺️ Link mappa trovato: ${href.substring(0, 100)}...`);
-      
-      const coordMatch = href.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
-      if (coordMatch) {
-        latitude = coordMatch[1];
-        longitude = coordMatch[2];
-        console.log(`📍 Coordinate estratte: ${latitude}, ${longitude}`);
-      }
-      
-      // Extract location
-      const addressMatch = href.match(/daddr=([^@&]+)/);
-      if (addressMatch) {
-        const addressParts = decodeURIComponent(addressMatch[1]).split(',');
-        if (addressParts.length > 1) {
-          location = addressParts[addressParts.length - 2].trim();
-        }
-      }
+  // Cerca link di Google Maps con regex
+  const mapLinkMatch = html.match(/href="[^"]*(?:maps\.google\.com|goo\.gl\/maps|maps\.app\.goo\.gl)[^"]*"/gi);
+  if (mapLinkMatch) {
+    const mapUrl = mapLinkMatch[0];
+    console.log(`🗺️ Link mappa trovato`);
+    
+    const coordMatch = mapUrl.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+    if (coordMatch) {
+      latitude = coordMatch[1];
+      longitude = coordMatch[2];
+      console.log(`📍 Coordinate estratte: ${latitude}, ${longitude}`);
     }
-  });
+  }
 
   // Fallback location dall'indirizzo
   if (location === "Salento" && address) {
@@ -421,48 +479,25 @@ async function extractDataFromHTML(html: string, sourceUrl: string): Promise<Ext
   
   console.log(`📍 Location finale: ${location}`);
 
-  // Extract image URL con strategia migliorata
+  // Extract image URL con regex
   let imageUrl = "";
+  const imgMatch = html.match(/(?:src|srcset)="[^"]*tripadvisor\.com\/media\/photo[^"]*"/i);
+  if (imgMatch) {
+    imageUrl = imgMatch[0].split('"')[1];
+    console.log(`🖼️ Immagine trovata: ${imageUrl.substring(0, 80)}...`);
+  }
 
-  // Cerca immagini TripAdvisor
-  $('picture img, img').each((i, elem) => {
-    if (imageUrl) return;
-    
-    const img = $(elem);
-    const src = img.attr('src');
-    const srcset = img.attr('srcset');
-    
-    if (srcset && srcset.includes('tripadvisor.com/media/photo')) {
-      const srcsetUrls = srcset.split(',').map(item => item.trim().split(' ')[0]);
-      imageUrl = srcsetUrls[srcsetUrls.length - 1];
-      console.log(`🖼️ Immagine trovata (srcset): ${imageUrl.substring(0, 80)}...`);
-    } else if (src && src.includes('tripadvisor.com/media/photo')) {
-      imageUrl = src;
-      console.log(`🖼️ Immagine trovata (src): ${imageUrl.substring(0, 80)}...`);
-    }
-  });
-
-  // Extract phone con pattern migliorati
+  // Extract phone con regex
   let phone = "";
-
-  $('a[href^="tel:"]').each((i, elem) => {
-    if (phone) return;
-    
-    const $link = $(elem);
-    const phoneSpan = $link.find('span.biGQs._P.XWJSj.Wb');
-    
-    if (phoneSpan.length > 0) {
-      const phoneText = phoneSpan.text().trim();
-      console.log(`📞 Candidato telefono: "${phoneText}"`);
-      
-      // Validazione telefono italiano o internazionale
-      const phoneMatch = phoneText.match(/(\+39\s?)?(\d{2,4}\s?\d{6,8}|\d{3}\s?\d{3}\s?\d{4})/);
-      if (phoneMatch) {
-        phone = phoneText;
-        console.log(`✅ Telefono estratto: ${phone}`);
-      }
+  const phoneMatch = html.match(/href="tel:([^"]+)"/);
+  if (phoneMatch) {
+    const phoneCandidate = phoneMatch[1];
+    // Validazione telefono italiano o internazionale
+    if (/(\+39\s?)?(\d{2,4}\s?\d{6,8}|\d{3}\s?\d{3}\s?\d{4})/.test(phoneCandidate)) {
+      phone = phoneCandidate;
+      console.log(`✅ Telefono estratto: ${phone}`);
     }
-  });
+  }
 
   const result = {
     name,
@@ -493,6 +528,16 @@ async function extractDataFromHTML(html: string, sourceUrl: string): Promise<Ext
   return result;
 }
 
+// Helper functions
+function extractWithRegex(html: string, regex: RegExp): string | null {
+  const match = html.match(regex);
+  return match ? match[1] : null;
+}
+
+function cleanText(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
 function getRandomUserAgent(): string {
   return DEFAULT_USER_AGENTS[Math.floor(Math.random() * DEFAULT_USER_AGENTS.length)];
 }
@@ -506,53 +551,54 @@ function randomDelay(min: number, max: number): Promise<void> {
 function handleScrapingError(error: Error, processingTime: number): ScrapingResponse {
   console.error('❌ Errore scraping:', error.message);
   
-  if (axios.isAxiosError(error)) {
-    if (error.response?.status === 403) {
-      return {
-        success: false,
-        error: 'TripAdvisor ha rifiutato la connessione (403 Forbidden)',
-        details: 'Il server ha rilevato una richiesta automatica e l\'ha bloccata',
-        suggestion: 'Questo può accadere quando si effettuano troppe richieste. Prova a inserire i dati manualmente o riprova tra qualche minuto.',
-        processingTime
-      };
-    }
-    
-    if (error.response?.status === 429) {
-      return {
-        success: false,
-        error: 'Troppe richieste inviate (429 Rate Limited)',
-        details: 'Il server ha temporaneamente limitato le richieste',
-        suggestion: 'Attendi qualche minuto prima di riprovare.',
-        processingTime
-      };
-    }
-    
-    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-      return {
-        success: false,
-        error: 'Timeout della richiesta',
-        details: 'La pagina ha impiegato troppo tempo a rispondere',
-        suggestion: 'La connessione è lenta o il server è sovraccarico. Riprova.',
-        processingTime
-      };
-    }
+  if (error.message.includes('TimeoutError') || error.message.includes('timeout')) {
+    return {
+      success: false,
+      error: 'Timeout della richiesta Puppeteer',
+      details: 'La pagina ha impiegato troppo tempo a caricare',
+      suggestion: 'La connessione è lenta o il server è sovraccarico. Riprova con un timeout maggiore.',
+      processingTime
+    };
+  }
 
-    if (error.response != undefined && error.response?.status >= 500) {
-      return {
-        success: false,
-        error: 'Errore del server TripAdvisor',
-        details: `Server ha restituito ${error.response.status}`,
-        suggestion: 'TripAdvisor potrebbe avere problemi tecnici. Riprova più tardi.',
-        processingTime
-      };
-    }
+  if (error.message.includes('ERR_NAME_NOT_RESOLVED') || error.message.includes('net::')) {
+    return {
+      success: false,
+      error: 'Errore di connessione',
+      details: 'Impossibile raggiungere TripAdvisor',
+      suggestion: 'Verifica la connessione internet e riprova.',
+      processingTime
+    };
+  }
+
+  if (error.message.includes('Navigation failed') || error.message.includes('net::ERR_FAILED')) {
+    return {
+      success: false,
+      error: 'Navigazione fallita',
+      details: 'TripAdvisor ha rifiutato la connessione',
+      suggestion: 'Il sito potrebbe aver rilevato l\'automazione. Riprova più tardi.',
+      processingTime
+    };
   }
 
   return {
     success: false,
-    error: 'Errore durante il scraping',
+    error: 'Errore durante il scraping con Puppeteer',
     details: error.message,
     suggestion: 'Verifica che l\'URL sia corretto e riprova. Se il problema persiste, inserisci i dati manualmente.',
     processingTime
   };
+}
+
+// Cleanup function per chiudere il browser globale quando necessario
+export async function cleanupBrowser(): Promise<void> {
+  if (globalBrowser && globalBrowser.isConnected()) {
+    try {
+      await globalBrowser.close();
+      globalBrowser = null;
+      console.log('🧹 Browser globale chiuso');
+    } catch (error) {
+      console.log('⚠️ Errore chiusura browser:', error);
+    }
+  }
 }
