@@ -21,11 +21,11 @@
   "author": "Fabio D'Agostino",
   "license": "MIT",
   "dependencies": {
+    "@sparticuz/chromium": "^133.0.0",
     "@vercel/node": "^3.0.14",
     "axios": "^1.6.2",
     "cheerio": "^1.0.0-rc.12",
-    "chrome-aws-lambda": "^10.1.0",
-    "puppeteer-core": "^24.10.0"
+    "puppeteer-core": "^23.11.1"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

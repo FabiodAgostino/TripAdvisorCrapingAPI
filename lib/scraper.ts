@@ -1,6 +1,6 @@
 // lib/scraper.ts
 import puppeteer, { Browser, Page } from 'puppeteer-core';
-import chromium from 'chrome-aws-lambda';
+import chromium from '@sparticuz/chromium';
 import { 
   ExtractedRestaurant, 
   ScrapingOptions, 
@@ -145,7 +145,7 @@ async function scrapeWithPuppeteer(url: string, options: {
     
     // Configurazione browser STEALTH per Vercel
     const launchOptions = {
-      args: [...chromium.args, // Args di chrome-aws-lambda
+      args: [...chromium.args, // Args di @sparticuz/chromium
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
@@ -175,7 +175,7 @@ async function scrapeWithPuppeteer(url: string, options: {
         '--user-agent=' + options.userAgent
       ],
       defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath, // Chrome path per Vercel
+      executablePath: await chromium.executablePath(), // Chiamata della funzione
       headless: chromium.headless,
       timeout: 10000,
       protocolTimeout: 10000,
