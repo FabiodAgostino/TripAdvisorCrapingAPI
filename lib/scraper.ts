@@ -1,5 +1,6 @@
 // lib/scraper.ts
-import puppeteer, { Browser, Page } from 'puppeteer';
+import puppeteer, { Browser, Page } from 'puppeteer-core';
+import chromium from 'chrome-aws-lambda';
 import { 
   ExtractedRestaurant, 
   ScrapingOptions, 
@@ -142,14 +143,13 @@ async function scrapeWithPuppeteer(url: string, options: {
   try {
     console.log(`🚀 Launching Puppeteer for attempt ${options.attempt + 1}`);
     
-    // Configurazione browser STEALTH per evitare detection
+    // Configurazione browser STEALTH per Vercel
     const launchOptions = {
-      headless: true, // Cambiato a boolean per compatibilità
-      args: [
+      args: [...chromium.args, // Args di chrome-aws-lambda
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
-        '--disable-blink-features=AutomationControlled', // IMPORTANTE: nasconde automazione
+        '--disable-blink-features=AutomationControlled',
         '--disable-features=VizDisplayCompositor',
         '--disable-background-timer-throttling',
         '--disable-backgrounding-occluded-windows',
@@ -169,22 +169,17 @@ async function scrapeWithPuppeteer(url: string, options: {
         '--disable-web-security',
         '--disable-features=TranslateUI',
         '--disable-ipc-flooding-protection',
-        // STEALTH flags specifici
         '--disable-automation', 
         '--exclude-switches=enable-automation',
         '--disable-blink-features=AutomationControlled',
         '--user-agent=' + options.userAgent
       ],
-      timeout: 10000, // Aumentato timeout
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath, // Chrome path per Vercel
+      headless: chromium.headless,
+      timeout: 10000,
       protocolTimeout: 10000,
-      ignoreDefaultArgs: ['--enable-automation', '--enable-blink-features=AutomationControlled'],
-      defaultViewport: {
-        width: 1366,
-        height: 768,
-        isMobile: false,
-        hasTouch: false,
-        isLandscape: true
-      }
+      ignoreDefaultArgs: ['--enable-automation', '--enable-blink-features=AutomationControlled']
     };
 
     // NON riutilizzare browser - problemi di stability con TripAdvisor

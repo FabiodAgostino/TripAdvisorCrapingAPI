@@ -24,7 +24,8 @@
     "@vercel/node": "^3.0.14",
     "axios": "^1.6.2",
     "cheerio": "^1.0.0-rc.12",
-    "puppeteer": "^24.10.0"
+    "chrome-aws-lambda": "^10.1.0",
+    "puppeteer-core": "^24.10.0"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
