@@ -325,22 +325,71 @@
         </div>
 
         <div class="test-section">
-            <h3>🚀 Test Live dell'API</h3>
-            <p>Testa il scraping in tempo reale inserendo un URL TripAdvisor:</p>
-            
-            <input 
-                type="text" 
-                id="test-url" 
-                class="test-input"
-                placeholder="https://www.tripadvisor.it/Restaurant_Review-..."
-            >
-            
-            <button onclick="testScraping()" class="test-button">
-                🔍 Testa Scraping
-            </button>
-            
-            <div id="test-result"></div>
-        </div>
+   <h3>🚀 Test Live dell'API</h3>
+   <p>Testa il scraping in tempo reale inserendo un URL TripAdvisor e la tua API key:</p>
+   
+   <!-- Campo API Key -->
+   <div style="margin-bottom: 20px;">
+       <label for="api-key" style="display: block; margin-bottom: 8px; font-weight: bold; color: #1565c0; font-size: 1rem;">
+           🔑 API Key
+       </label>
+       <input 
+           type="password" 
+           id="api-key" 
+           class="test-input"
+           placeholder="Inserisci la tua API key per l'autenticazione..."
+           style="margin-bottom: 8px;"
+       >
+       <div style="font-size: 0.9rem; color: #666; padding: 8px 12px; background: rgba(255, 193, 7, 0.1); border-left: 4px solid #ffc107; border-radius: 4px;">
+           💡 <strong>Info:</strong> Lascia vuoto se l'autenticazione è disabilitata per i test. 
+           L'API key viene inviata nell'header <code>X-API-Key</code>.
+       </div>
+   </div>
+   
+   <!-- Campo URL TripAdvisor -->
+   <div style="margin-bottom: 20px;">
+       <label for="test-url" style="display: block; margin-bottom: 8px; font-weight: bold; color: #1565c0; font-size: 1rem;">
+           🔗 URL TripAdvisor
+       </label>
+       <input 
+           type="text" 
+           id="test-url" 
+           class="test-input"
+           placeholder="https://www.tripadvisor.it/Restaurant_Review-g187890-d696053-Reviews-..."
+       >
+       <div style="font-size: 0.9rem; color: #666; margin-top: 5px;">
+           Esempio: URL completo di una pagina ristorante TripAdvisor
+       </div>
+   </div>
+   
+   <!-- Pulsante Test -->
+   <div style="margin-bottom: 20px;">
+       <button onclick="testScraping()" class="test-button" style="width: 100%; padding: 15px; font-size: 1.1rem;">
+           🔍 Avvia Test Scraping
+       </button>
+   </div>
+   
+   <!-- Area risultati -->
+   <div id="test-result"></div>
+   
+   <!-- Sezione esempi URL -->
+   <div style="margin-top: 30px; padding: 20px; background: rgba(33, 150, 243, 0.05); border: 1px solid rgba(33, 150, 243, 0.2); border-radius: 8px;">
+       <h4 style="color: #1565c0; margin-bottom: 15px;">📝 Esempi di URL TripAdvisor validi:</h4>
+       <div style="font-family: monospace; font-size: 0.9rem; color: #333;">
+           <div style="margin-bottom: 8px; cursor: pointer; padding: 8px; background: white; border-radius: 4px; border: 1px solid #ddd;" onclick="fillExampleUrl(this.textContent.trim())">
+               https://www.tripadvisor.it/Restaurant_Review-g194791-d25438254-Reviews-Signuria_Restaurant_Caffe-Lecce_Province_of_Lecce_Puglia.html
+           </div>
+           <div style="margin-bottom: 8px; cursor: pointer; padding: 8px; background: white; border-radius: 4px; border: 1px solid #ddd;" onclick="fillExampleUrl(this.textContent.trim())">
+               https://www.tripadvisor.it/Restaurant_Review-g194791-d26125555-Reviews-Classe_La_Dogana_Restaurant-Lecce_Province_of_Lecce_Puglia.html
+           </div>
+           <div style="margin-bottom: 8px; cursor: pointer; padding: 8px; background: white; border-radius: 4px; border: 1px solid #ddd;" onclick="fillExampleUrl(this.textContent.trim())">
+               https://www.tripadvisor.it/Restaurant_Review-g194791-d10555122-Reviews-Tabisca_Il_Vico_dei_Tagliati-Lecce_Province_of_Lecce_Puglia.html
+           </div>
+       </div>
+       <div style="font-size: 0.85rem; color: #666; margin-top: 10px;">
+           💡 Clicca su un esempio per compilare automaticamente il campo URL
+       </div>
+   </div>
 
         <div class="grid">
             <div class="info-card">
@@ -430,8 +479,10 @@ if (data.success) {
 
         // Test scraping function
         // Test scraping function - VERSIONE AGGIORNATA
+// Test scraping function - CON API KEY
 async function testScraping() {
     const url = document.getElementById('test-url').value.trim();
+    const apiKey = document.getElementById('api-key').value.trim();
     const resultDiv = document.getElementById('test-result');
     
     if (!url) {
@@ -447,21 +498,53 @@ async function testScraping() {
     resultDiv.innerHTML = '<div class="test-result info-result">🔄 Estrazione in corso... Attendere...</div>';
 
     try {
+        // Prepara gli headers
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+
+        // Aggiungi API key se fornita
+        if (apiKey) {
+            headers['X-API-Key'] = apiKey;
+            console.log('🔑 Using API Key:', apiKey.substring(0, 8) + '...');
+        } else {
+            console.log('⚠️ No API Key provided - using public access');
+        }
+
         const response = await fetch('/api/scrape', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: headers,
             body: JSON.stringify({ url })
         });
 
         const data = await response.json();
 
+        if (response.status === 401) {
+            resultDiv.innerHTML = `
+                <div class="test-result error-result">
+                    🔐 <strong>Errore di Autenticazione</strong>
+                    <br>La richiesta richiede una API key valida.
+                    <br>💡 <strong>Suggerimento:</strong> Inserisci la tua API key nel campo sopra o disabilita l'autenticazione per i test.
+                    
+                    <div style="margin-top: 15px; padding: 10px; background: rgba(255,255,255,0.8); border-radius: 6px;">
+                        <strong>Debug Info:</strong>
+                        <br>• Status: ${response.status}
+                        <br>• Headers inviati: ${apiKey ? '✅ X-API-Key fornita' : '❌ Nessuna API key'}
+                        <br>• Messaggio: ${data.error}
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
         if (data.success && data.data) {
-            // Visualizzazione riassunto + JSON completo
+            // Stesso codice di successo di prima...
             resultDiv.innerHTML = `
                 <div class="test-result success">
-                    <div style="font-weight: bold; margin-bottom: 15px;">✅ Estrazione completata con successo!</div>
+                    <div style="font-weight: bold; margin-bottom: 15px;">
+                        ✅ Estrazione completata con successo!
+                        ${apiKey ? ' 🔐 (Autenticato)' : ' 🌐 (Accesso pubblico)'}
+                    </div>
                     
                     <!-- Riassunto veloce -->
                     <div style="background: rgba(255,255,255,0.8); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
@@ -474,24 +557,18 @@ async function testScraping() {
                         ${data.data.address ? `<div><strong>🏠 Indirizzo:</strong> ${data.data.address}</div>` : ''}
                     </div>
                     
-                    <!-- Pulsante per mostrare/nascondere JSON -->
+                    <!-- Resto del codice uguale... -->
                     <button onclick="toggleJson()" style="background: #D2691E; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; margin-bottom: 10px;">
                         📋 Mostra/Nascondi JSON Completo
                     </button>
                     
-                    <!-- JSON completo (inizialmente nascosto) -->
                     <div id="json-container" style="display: none;">
                         <h4 style="margin: 15px 0 10px 0; color: #2c3e50;">📄 Dati JSON Completi:</h4>
                         <pre style="background: #2d3748; color: #e2e8f0; padding: 20px; border-radius: 8px; overflow-x: auto; font-size: 0.85rem; line-height: 1.4; max-height: 400px; overflow-y: auto;">${JSON.stringify(data, null, 2)}</pre>
                         
-                        <!-- Pulsante copia JSON -->
                         <button onclick="copyJson()" style="background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; margin-top: 10px; font-size: 0.9rem;">
                             📋 Copia JSON
                         </button>
-                    </div>
-                    
-                    <div style="margin-top: 15px; font-size: 0.9em; opacity: 0.7;">
-                        ⏱️ Tempo di elaborazione: ${data.processingTime || 'N/A'}ms
                     </div>
                 </div>
             `;
@@ -499,9 +576,9 @@ async function testScraping() {
             resultDiv.innerHTML = `
                 <div class="test-result error-result">
                     ❌ <strong>Errore:</strong> ${data.error || 'Errore sconosciuto'}
+                    <br><strong>Status HTTP:</strong> ${response.status}
                     ${data.suggestion ? `<br>💡 <strong>Suggerimento:</strong> ${data.suggestion}` : ''}
                     
-                    <!-- Mostra JSON dell'errore -->
                     <div style="margin-top: 15px;">
                         <button onclick="toggleErrorJson()" style="background: #dc3545; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
                             📋 Mostra Dettagli Errore
@@ -518,6 +595,10 @@ async function testScraping() {
             <div class="test-result error-result">
                 ❌ <strong>Errore di rete:</strong> ${error.message}
                 <br>💡 Controlla la connessione e riprova.
+                
+                <div style="margin-top: 10px; font-size: 0.9rem; opacity: 0.8;">
+                    Debug: ${apiKey ? 'API key fornita' : 'Nessuna API key'}
+                </div>
             </div>
         `;
     }
