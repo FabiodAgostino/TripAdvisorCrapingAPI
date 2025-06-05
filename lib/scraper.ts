@@ -105,7 +105,7 @@ export async function scrapeTripAdvisor(
 
       } catch (error) {
         lastError = error as Error;
-        console.log(`❌ Tentativo ${attempt + 1} fallito:`, error.message);
+        console.log(`❌ Tentativo ${attempt + 1} fallito:`, error);
         
         if (attempt < retries) {
           // Delay progressivo tra tentativi
@@ -131,7 +131,7 @@ async function makeRequest(url: string, options: {
 }): Promise<AxiosResponse<string>> {
   
   // Headers più realistici basati sul tentativo
-  const baseHeaders = {
+  const baseHeaders: Record<string, string> = {
     'User-Agent': options.userAgent,
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
     'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
@@ -146,7 +146,7 @@ async function makeRequest(url: string, options: {
   };
 
   // Variazioni negli headers per ogni tentativo
-  const headers = { ...baseHeaders };
+  const headers: Record<string, string> = { ...baseHeaders };
   
   if (options.attempt === 1) {
     headers['Referer'] = 'https://www.google.it/';
@@ -537,7 +537,7 @@ function handleScrapingError(error: Error, processingTime: number): ScrapingResp
       };
     }
 
-    if (error.response?.status !== undefined  && error.response?.status >= 500) {
+    if (error.response != undefined && error.response?.status >= 500) {
       return {
         success: false,
         error: 'Errore del server TripAdvisor',
