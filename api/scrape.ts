@@ -2,6 +2,7 @@ import { VercelRequest, VercelResponse } from '@vercel/node';
 import { scrapeTripAdvisor } from '../lib/scraper';
 import { ScrapingRequest, ApiResponse, ExtractedRestaurant } from '../lib/types';
 
+
 export default async function handler(
   req: VercelRequest, 
   res: VercelResponse
